@@ -48,31 +48,23 @@ enum fieldtype {
     fn iter(f: fn(&row: [str]) -> bool);
 }*/
 
-trait newrowreader {
-  fn new_reader(&self, delim: char, quote: char) -> ~rowreader;
-  fn new_reader_readlen(&self, delim: char, quote: char, rl: uint) -> ~rowreader;
+
+fn new_reader(f: ~Reader, delim: char, quote: char) -> ~rowreader {
+    new_reader_readlen(f, delim, quote, 1024u)
 }
 
-impl newrowreader for rowreader {
-  fn new_reader(&self, delim: char, quote: char) -> ~rowreader {
-      {
-          self.new_reader_readlen(delim, quote, 1024u)
-      }
-  }
-
-  fn new_reader_readlen(&self, delim: char, quote: char, rl: uint) -> ~rowreader {
-      rowreader {
-          readlen: rl,
-          delim: delim,
-          quote: quote,
-          f: self,
-          offset : 0u,
-          buffers : ~[],
-          state : fieldstart(false),
-          trailing_nl : false,
-          terminating: false
-      }
-  }
+fn new_reader_readlen(f: ~Reader, delim: char, quote: char, rl: uint) -> ~rowreader {
+    ~rowreader {
+        readlen: rl,
+        delim: delim,
+        quote: quote,
+        f: f,
+        offset : 0u,
+        buffers : ~[],
+        state : fieldstart(false),
+        trailing_nl : false,
+        terminating: false
+    }
 }
 
 fn statestr(state: state) -> ~str {
