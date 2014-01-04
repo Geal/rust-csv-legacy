@@ -22,7 +22,7 @@ pub struct rowreader {
     readlen: uint,
     delim: char,
     quote: char,
-    f : Reader,
+    f : ~Reader,
     offset : uint,
     buffers : ~[~[char]],
     state : state,
@@ -75,7 +75,7 @@ impl newrowreader for rowreader {
   }
 }
 
-fn statestr(state: state) -> str {
+fn statestr(state: state) -> ~str {
     match state {
         fieldstart(after_delim) => {
             format!("fieldstart : after_delim {}", after_delim)
@@ -92,7 +92,7 @@ fn statestr(state: state) -> str {
     }
 }
 
-fn unescape(escaped: [char], quote: char) -> [char] {
+fn unescape(escaped: ~[char], quote: char) -> ~[char] {
     let mut r : [char] = [];
     r.reserve(escaped.len());
     let mut in_q = false;
@@ -109,14 +109,14 @@ fn unescape(escaped: [char], quote: char) -> [char] {
 }
 
 trait rowiter {
-  fn readrow(&row: [str]) -> bool;
+  fn readrow(&row: ~[~str]) -> bool;
 }
 
 impl rowiter for rowreader {
     #[inline]
-    fn readrow(&self, &row: [str]) -> bool {
-        fn row_from_buf(current: rowreader, &fields: [str]) -> bool {
-            fn decode(buffers: &mut [[char]], field: fieldtype, quote: char) -> str {
+    fn readrow(&self, &row: ~[~str]) -> bool {
+        fn row_from_buf(current: rowreader, &fields: ~[~str]) -> bool {
+            fn decode(buffers: &mut ~[~[char]], field: fieldtype, quote: char) -> ~str {
                 match field {
                     emptyfield() => { "" }
                     bufferfield(desc) => {
@@ -259,7 +259,7 @@ impl rowiter for rowreader {
         return false;
     }
 
-    fn iter(&self, f: fn(&row: [str]) -> bool) {
+    fn iter(&self, f: fn(&row: ~[~str]) -> bool) {
         let mut row = [];
         while self.readrow(row) {
             if !f(row) {
@@ -271,7 +271,7 @@ impl rowiter for rowreader {
 
 #[cfg(test)]
 mod test {
-    fn rowmatch(testdata: str, expected: [[str]]) {
+    fn rowmatch(testdata: ~str, expected: ~[~[~str]]) {
         let chk = |s: str, mk: fn(io::reader) -> rowreader| {
             let f = io::str_reader(s);
             let r = mk(f);
