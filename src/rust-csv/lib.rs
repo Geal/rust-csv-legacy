@@ -114,7 +114,7 @@ trait rowiter {
 
 impl rowiter for rowreader {
     #[inline]
-    fn readrow(&row: [str]) -> bool {
+    fn readrow(&self, &row: [str]) -> bool {
         fn row_from_buf(current: rowreader, &fields: [str]) -> bool {
             fn decode(buffers: &mut [[char]], field: fieldtype, quote: char) -> str {
                 match field {
@@ -221,15 +221,15 @@ impl rowiter for rowreader {
             }
             return false;
         }
-        current.state = fieldstart(false);
-        let mut do_read = (*current.buffers).len() == 0u;
+        self.state = fieldstart(false);
+        let mut do_read = (*self.buffers).len() == 0u;
         row = [];
-        while !current.terminating {
+        while !self.terminating {
             if do_read {
-                let mut data = current.f.read_chars(current.readlen);
+                let mut data = self.f.read_chars(self.readlen);
                 if data.len() == 0u {
-                    if !current.trailing_nl {
-                        current.terminating = true;
+                    if !self.trailing_nl {
+                        self.terminating = true;
                         data = ['\n'];
                     } else {
                         return false;
@@ -237,20 +237,20 @@ impl rowiter for rowreader {
                 }
                 // this is horrible, but it avoids the whole parser needing 
                 // to know about \r.
-                data = vec::filter(data, |c| c != '\r' );
+                data = data.filter( |c| c != '\r' );
                 let data_len = data.len();
                 if data_len == 0u {
-                    cont;
+                    continue;
                 }
-                current.trailing_nl = data[data_len - 1u] == '\n';
-                *current.buffers += [data];
-                current.offset = 0u;
+                self.trailing_nl = data[data_len - 1u] == '\n';
+                *self.buffers += [data];
+                self.offset = 0u;
             }
 
-            if row_from_buf(current, row) {
-                let buflen = (*current.buffers).len();
+            if row_from_buf(self, row) {
+                let buflen = (*self.buffers).len();
                 if buflen > 1u {
-                    *current.buffers = [current.buffers[buflen-1u]];
+                    *self.buffers = [self.buffers[buflen-1u]];
                 }
                 return true;
             }
@@ -259,9 +259,9 @@ impl rowiter for rowreader {
         return false;
     }
 
-    fn iter(f: fn(&row: [str]) -> bool) {
+    fn iter(&self, f: fn(&row: [str]) -> bool) {
         let mut row = [];
-        while current.readrow(row) {
+        while self.readrow(row) {
             if !f(row) {
                 break;
             }
