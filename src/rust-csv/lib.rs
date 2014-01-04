@@ -2,13 +2,13 @@
 #[crate_type = "lib"];
 
 use std;
-import io::{writer_util, reader_util};
-import std::map;
-import map::hashmap;
-import result;
+use io::{writer_util, reader_util};
+use std::map;
+use map::hashmap;
+use result;
 
-export rowreader, rowiter,
-       new_reader, new_reader_readlen;
+//export rowreader, rowiter,
+//       new_reader, new_reader_readlen;
 
 enum state {
     fieldstart(bool),
@@ -17,54 +17,61 @@ enum state {
     inquote(uint, uint)
 }
 
-type rowreader = {
+pub struct rowreader {
     readlen: uint,
     delim: char,
     quote: char,
     f : io::reader,
-    mut offset : uint,
-    buffers : @mut [[char]],
-    mut state : state,
-    mut trailing_nl : bool,
-    mut terminating : bool
-};
+    offset : uint,
+    buffers : ~[~[char]],
+    state : state,
+    trailing_nl : bool,
+    terminating : bool
+}
 
-type bufferdescr = {
+struct bufferdescr {
     escaped: bool,
     sb: uint,
     eb: uint,
     start: uint,
     end: uint
-};
+}
 
 enum fieldtype {
     emptyfield(),
     bufferfield(bufferdescr)
 }
 
-iface rowiter {
+/*iface rowiter {
     fn readrow(&row: [str]) -> bool;
     fn iter(f: fn(&row: [str]) -> bool);
+}*/
+
+trait newrowreader {
+  fn new_reader(&self, delim: char, quote: char) -> ~rowreader;
+  fn new_reader_readlen(&self, delim: char, quote: char, rl: uint) -> ~rowreader;
 }
 
-fn new_reader(+f: io::reader, +delim: char, +quote: char) -> rowreader {
-    {
-        new_reader_readlen(f, delim, quote, 1024u)
-    }
-}
+impl newrowreader for rowreader {
+  fn new_reader(&self, delim: char, quote: char) -> ~rowreader {
+      {
+          new_reader_readlen(f, delim, quote, 1024u)
+      }
+  }
 
-fn new_reader_readlen(+f: io::reader, +delim: char, +quote: char, rl: uint) -> rowreader {
-    {
-        readlen: rl,
-        delim: delim,
-        quote: quote,
-        f: f,
-        mut offset : 0u,
-        buffers : @mut [],
-        mut state : fieldstart(false),
-        mut trailing_nl : false,
-        mut terminating: false
-    }
+  fn new_reader_readlen(&self, delim: char, quote: char, rl: uint) -> ~rowreader {
+      rowreader {
+          readlen: rl,
+          delim: delim,
+          quote: quote,
+          f: f,
+          offset : 0u,
+          buffers : ~[],
+          state : fieldstart(false),
+          trailing_nl : false,
+          terminating: false
+      }
+  }
 }
 
 fn statestr(+state: state) -> str {
