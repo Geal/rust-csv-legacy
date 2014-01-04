@@ -1,3 +1,6 @@
+#[link(name = "csv", vers = "0.2", uuid = "c88f4e89-fc12-4cb3-a978-35d135aefcfd", author = "grahame")];
+#[crate_type = "lib"];
+
 use std;
 import io::{writer_util, reader_util};
 import std::map;
