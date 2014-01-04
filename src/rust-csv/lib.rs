@@ -97,7 +97,7 @@ fn unescape(escaped: ~[char], quote: char) -> ~[char] {
             r.push(c);
         }
     }
-    r;
+    r
 }
 
 trait rowiter {
@@ -220,22 +220,26 @@ impl rowiter for rowreader {
         row = ~[];
         while !self.terminating {
             if do_read {
-                let mut data = self.f.read_chars(self.readlen);
+                let mut data:~[char] = ~[]; // = (str::from_utf8(self.f.read_bytes(self.readlen))).chars().collect();
+                let chars = (str::from_utf8(self.f.read_bytes(self.readlen))).chars();
                 if data.len() == 0u {
                     if !self.trailing_nl {
                         self.terminating = true;
-                        data = ['\n'];
+                        data = ~['\n'];
                     } else {
                         return false;
                     }
                 }
                 // this is horrible, but it avoids the whole parser needing 
                 // to know about \r.
-                data = data.filter( |c:char| c != '\r' );
+                let fl = chars.filter( |&c| c != '\r' );
+                data = fl.collect();
+                //data  = fl.collect::<~[char]>();
                 let data_len = data.len();
                 if data_len == 0u {
                     continue;
                 }
+
                 self.trailing_nl = data[data_len - 1u] == '\n';
                 self.buffers = vec::append(self.buffers, [data]);
                 self.offset = 0u;
