@@ -110,8 +110,8 @@ fn unescape(escaped: [char], quote: char) -> [char] {
 impl rowiter for rowreader {
     #[inline]
     fn readrow(&row: [str]) -> bool {
-        fn row_from_buf(&self: rowreader, &fields: [str]) -> bool {
-            fn decode(buffers: @mut [[char]], field: fieldtype, quote: char) -> str {
+        fn row_from_buf(current: rowreader, &fields: [str]) -> bool {
+            fn decode(buffers: &mut [[char]], field: fieldtype, quote: char) -> str {
                 match field {
                     emptyfield() => { "" }
                     bufferfield(desc) => {
@@ -138,93 +138,93 @@ impl rowiter for rowreader {
                 }
             }
             #[inline]
-            fn new_bufferfield(self: rowreader, escaped: bool, sb: uint, so: uint, eo: uint) -> fieldtype {
-                let mut eb = vec::len(*self.buffers) - 1u;
+            fn new_bufferfield(current: rowreader, escaped: bool, sb: uint, so: uint, eo: uint) -> fieldtype {
+                let mut eb = vec::len(*current.buffers) - 1u;
                 let mut sb = sb;
                 let mut so = so;
                 let mut eo = eo;
                 if escaped {
                     so += 1u;
-                    if so > vec::len(self.buffers[sb]) {
+                    if so > vec::len(current.buffers[sb]) {
                         sb += 1u;
-                        so = vec::len(self.buffers[sb]) - 1u;
+                        so = vec::len(current.buffers[sb]) - 1u;
                     }
                     if eo > 0u {
                         eo -= 1u;
                     } else {
                         eb -= 1u;
-                        eo = vec::len(self.buffers[eb]) - 1u;
+                        eo = vec::len(current.buffers[eb]) - 1u;
                     }
                 }
                 bufferfield( descr{ escaped: escaped, sb: sb, eb: eb, start: so, end: eo })
             }
-            let cbuffer = vec::len(*self.buffers) - 1u;
-            let buf = self.buffers[cbuffer];
-            while self.offset < vec::len(buf) {
-                let coffset = self.offset;
+            let cbuffer = vec::len(*current.buffers) - 1u;
+            let buf = current.buffers[cbuffer];
+            while current.offset < vec::len(buf) {
+                let coffset = current.offset;
                 let c : char = buf[coffset];
-                debug!("got '%c' | %s", c, statestr(self.state));
-                self.offset += 1u;
-                match self.state {
+                debug!("got '{}' | {}", c, statestr(current.state));
+                current.offset += 1u;
+                match current.state {
                     fieldstart(after_delim) => {
-                        debug!("fieldstart : after_delim %b", after_delim);
-                        if c == self.quote {
-                            self.state = inquotedfield(cbuffer, coffset);
+                        debug!("fieldstart : after_delim {}", after_delim);
+                        if c == current.quote {
+                            current.state = inquotedfield(cbuffer, coffset);
                         } else if c == '\n' {
                             if after_delim {
-                                fields += [decode(self.buffers, emptyfield, self.quote)];
+                                fields += [decode(current.buffers, emptyfield, current.quote)];
                             }
                             return true;
-                        } else if c == self.delim {
-                            self.state = fieldstart(true);
-                            fields += [decode(self.buffers, emptyfield, self.quote)];
+                        } else if c == current.delim {
+                            current.state = fieldstart(true);
+                            fields += [decode(current.buffers, emptyfield, current.quote)];
                         } else {
-                            self.state = infield(cbuffer, coffset);
+                            current.state = infield(cbuffer, coffset);
                         }
                     }
                     infield(b,o) => {
-                        debug!("field : %u %u", b, o);
+                        debug!("field : {} {}", b, o);
                         if c == '\n' {
-                            fields += [decode(self.buffers, new_bufferfield(self, false, b, o, coffset), self.quote)];
+                            fields += [decode(current.buffers, new_bufferfield(current, false, b, o, coffset), current.quote)];
                             return true;
-                        } else if c == self.delim {
-                            self.state = fieldstart(true);
-                            fields += [decode(self.buffers, new_bufferfield(self, false, b, o, coffset), self.quote)];
+                        } else if c == current.delim {
+                            current.state = fieldstart(true);
+                            fields += [decode(current.buffers, new_bufferfield(current, false, b, o, coffset), current.quote)];
                         }
                     }
                     inquotedfield(b, o) => {
-                        debug!("inquotedfield : %u %u", b, o);
-                        if c == self.quote {
-                            self.state = inquote(b, o);
+                        debug!("inquotedfield : {} {}", b, o);
+                        if c == current.quote {
+                            current.state = inquote(b, o);
                         }
                     }
                     inquote(b, o) => {
-                        debug!("inquote : %u %u", b, o);
+                        debug!("inquote : {} {}", b, o);
                         if c == '\n' {
-                            fields += [decode(self.buffers, new_bufferfield(self, true, b, o, coffset), self.quote)];
+                            fields += [decode(current.buffers, new_bufferfield(current, true, b, o, coffset), current.quote)];
                             return true;
-                        } else if c == self.quote {
-                            self.state = inquotedfield(b, o);
-                        } else if c == self.delim {
-                            self.state = fieldstart(true);
-                            fields += [decode(self.buffers, new_bufferfield(self, true, b, o, coffset), self.quote)];
+                        } else if c == current.quote {
+                            current.state = inquotedfield(b, o);
+                        } else if c == current.delim {
+                            current.state = fieldstart(true);
+                            fields += [decode(current.buffers, new_bufferfield(current, true, b, o, coffset), current.quote)];
                         }
                         // swallow odd chars, eg. space between field and "
                     }
                 }
-                debug!("now %s", statestr(self.state));
+                debug!("now {}", statestr(current.state));
             }
             return false;
         }
-        self.state = fieldstart(false);
-        let mut do_read = vec::len(*self.buffers) == 0u;
+        current.state = fieldstart(false);
+        let mut do_read = vec::len(*current.buffers) == 0u;
         row = [];
-        while !self.terminating {
+        while !current.terminating {
             if do_read {
-                let mut data = self.f.read_chars(self.readlen);
+                let mut data = current.f.read_chars(current.readlen);
                 if vec::len(data) == 0u {
-                    if !self.trailing_nl {
-                        self.terminating = true;
+                    if !current.trailing_nl {
+                        current.terminating = true;
                         data = ['\n'];
                     } else {
                         return false;
@@ -237,15 +237,15 @@ impl rowiter for rowreader {
                 if data_len == 0u {
                     cont;
                 }
-                self.trailing_nl = data[data_len - 1u] == '\n';
-                *self.buffers += [data];
-                self.offset = 0u;
+                current.trailing_nl = data[data_len - 1u] == '\n';
+                *current.buffers += [data];
+                current.offset = 0u;
             }
 
-            if row_from_buf(self, row) {
-                let buflen = vec::len(*self.buffers);
+            if row_from_buf(current, row) {
+                let buflen = vec::len(*current.buffers);
                 if buflen > 1u {
-                    *self.buffers = [self.buffers[buflen-1u]];
+                    *current.buffers = [current.buffers[buflen-1u]];
                 }
                 return true;
             }
@@ -256,7 +256,7 @@ impl rowiter for rowreader {
 
     fn iter(f: fn(&row: [str]) -> bool) {
         let mut row = [];
-        while self.readrow(row) {
+        while current.readrow(row) {
             if !f(row) {
                 break;
             }
@@ -267,7 +267,7 @@ impl rowiter for rowreader {
 #[cfg(test)]
 mod test {
     fn rowmatch(testdata: str, expected: [[str]]) {
-        let chk = fn@(s: str, mk: fn(io::reader) -> rowreader) {
+        let chk = |s: str, mk: fn(io::reader) -> rowreader| {
             let f = io::str_reader(s);
             let r = mk(f);
             let mut i = 0u;
@@ -287,7 +287,7 @@ mod test {
             }
             assert(i == vec::len(expected));
         };
-        let runchecks = fn@(s: str) {
+        let runchecks = |s: str| {
             // test default reader params
             do chk(s) |inp| {
                 new_reader_readlen(inp, ',', '"', 2u)
@@ -367,7 +367,7 @@ mod test {
     fn iter_test() {
         let f = io::str_reader("a brown,cat");
         let r : rowreader = new_reader(f, ',', '"');
-        for r.iter() |row| {
+        for row in r.iter() {
             assert(row[0] == "a brown");
             assert(row[1] == "cat");
         }
