@@ -77,16 +77,16 @@ impl newrowreader for rowreader {
 fn statestr(state: state) -> str {
     match state {
         fieldstart(after_delim) => {
-            format!("fieldstart : after_delim %b", after_delim)
+            format!("fieldstart : after_delim {}", after_delim)
         }
         infield(b,o) => {
-            format!("field : %u %u", b, o)
+            format!("field : {} {}", b, o)
         }
         inquotedfield(b, o) => {
-            format!("inquotedfield : %u %u", b, o)
+            format!("inquotedfield : {} {}", b, o)
         }
         inquote(b, o) => {
-            format!("inquote : %u %u", b, o)
+            format!("inquote : {} {}", b, o)
         }
     }
 }
