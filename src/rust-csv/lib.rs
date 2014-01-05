@@ -96,14 +96,14 @@ fn unescape(escaped: ~[char], quote: char) -> ~[char] {
 }
 
 trait rowiter {
-  fn readrow(&mut self, row: &~[~str]) -> bool;
-  fn iter(&mut self, f: fn(&row: ~[~str]) -> bool);
+  fn readrow(&mut self) -> ~[~str];
+  //fn iter(&mut self, f: fn(&row: ~[~str]) -> bool);
 }
 
 impl rowiter for rowreader {
     #[inline]
-    fn readrow(&mut self, mut row: &~[~str]) -> bool {
-        //let mut row = r;
+    fn readrow(&mut self) -> ~[~str] {
+        let mut row:~[~str] = ~[];
         self.state = fieldstart(false);
         let mut do_read = self.buffers.len() == 0u;
         //*row = ~[];
@@ -117,7 +117,7 @@ impl rowiter for rowreader {
                         self.terminating = true;
                         data = ~['\n'];
                     } else {
-                        return false;
+                        return row;
                     }
                 }
                 // this is horrible, but it avoids the whole parser needing 
@@ -135,29 +135,34 @@ impl rowiter for rowreader {
                 self.offset = 0u;
             }
 
-            if row_from_buf(self, row) {
+            if row_from_buf(self, &row) {
                 let buflen = self.buffers.len();
                 if buflen > 1u {
                     self.buffers = ~[self.buffers[buflen-1u]];
                 }
-                return true;
+                return row;
             }
             do_read = true;
         }
-        return false;
+        return ~[];
     }
 
-    fn iter(&mut self, f: fn(mut r: ~[~str]) -> bool) {
+    /*fn iter(&mut self, f: fn(mut r: ~[~str]) -> bool) {
         let mut row =  ~[];
-        while self.readrow(&row) {
-            if !f(row) {
-                break;
-            }
+        while(true) {
+          let temp = self.readrow();
+          if(temp.len() == 0) {
+            break;
+          }
+          row = vec::append(row, temp);
+          if !f(row) {
+              break;
+          }
         }
-    }
+    }*/
 }
 
-fn row_from_buf(current: &mut rowreader, mut fields: &~[~str]) -> bool {
+fn row_from_buf(current: &mut rowreader, fields: &~[~str]) -> bool {
   let cbuffer = current.buffers.len() - 1u;
   let buf = current.buffers[cbuffer];
   while current.offset < buf.len() {
@@ -275,9 +280,11 @@ mod test {
             let mut i = 0u;
             let mut row: [str] = [];
             loop {
-                if !r.readrow(row) {
-                    break;
+                let temp = r.readrow();
+                if(temp.len() == 0) {
+                  break;
                 }
+                row = vec::append(row, temp);
                 let expect = expected[i];
                 assert!(row.len() == expect.len());
                 let mut j = 0u;
