@@ -131,17 +131,20 @@ impl rowiter for rowreader {
                 }
 
                 self.trailing_nl = data[data_len - 1u] == '\n';
-                vec::append(self.buffers, [data]);
+                self.buffers.push(data);
                 self.offset = 0u;
             }
 
             let temp = row_from_buf(self);
             if (temp.len() != 0) {
-                vec::append(row, temp);
-                let buflen = self.buffers.len();
+                //vec::append(row, temp);
+                for el in temp.iter() {
+                  row.push(el.clone());
+                }
+                /*let buflen = self.buffers.len();
                 if buflen > 1u {
                     self.buffers = ~[self.buffers[buflen-1u]];
-                }
+                }*/
                 return row;
             }
             do_read = true;
