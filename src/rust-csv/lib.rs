@@ -43,11 +43,6 @@ enum fieldtype {
     bufferfield(bufferdescr)
 }
 
-/*iface rowiter {
-    fn readrow(&row: [str]) -> bool;
-    fn iter(f: fn(&row: [str]) -> bool);
-}*/
-
 
 fn new_reader(f: ~Reader, delim: char, quote: char) -> ~rowreader {
     new_reader_readlen(f, delim, quote, 1024u)
@@ -101,16 +96,17 @@ fn unescape(escaped: ~[char], quote: char) -> ~[char] {
 }
 
 trait rowiter {
-  fn readrow(&self, &row: ~[~str]) -> bool;
-  fn iter(&self, f: fn(&row: ~[~str]) -> bool);
+  fn readrow(&mut self, row: &~[~str]) -> bool;
+  fn iter(&mut self, f: fn(&row: ~[~str]) -> bool);
 }
 
 impl rowiter for rowreader {
     #[inline]
-    fn readrow(&self, row: ~[~str]) -> bool {
-        fn row_from_buf(current: &rowreader, fields: ~[~str]) -> bool {
+    fn readrow(&mut self, mut row: &~[~str]) -> bool {
+        //let mut row = r;
+        fn row_from_buf(current: &mut rowreader, mut fields: &~[~str]) -> bool {
             fn decode(bufs: ~[~[char]], field: fieldtype, quote: char) -> ~str {
-                let buffers = &mut bufs;
+                let mut buffers = & bufs;
                 match field {
                     emptyfield() => { ~"" }
                     bufferfield(desc) => {
@@ -137,22 +133,22 @@ impl rowiter for rowreader {
                 }
             }
             #[inline]
-            fn new_bufferfield(current: &rowreader, escaped: bool, sb: uint, so: uint, eo: uint) -> fieldtype {
-                let mut eb = current.buffers.len() - 1u;
+            fn new_bufferfield(cur: &rowreader, escaped: bool, sb: uint, so: uint, eo: uint) -> fieldtype {
+                let mut eb = cur.buffers.len() - 1u;
                 let mut sb = sb;
                 let mut so = so;
                 let mut eo = eo;
                 if escaped {
                     so += 1u;
-                    if so > current.buffers[sb].len() {
+                    if so > cur.buffers[sb].len() {
                         sb += 1u;
-                        so = current.buffers[sb].len() - 1u;
+                        so = cur.buffers[sb].len() - 1u;
                     }
                     if eo > 0u {
                         eo -= 1u;
                     } else {
                         eb -= 1u;
-                        eo = current.buffers[eb].len() - 1u;
+                        eo = cur.buffers[eb].len() - 1u;
                     }
                 }
                 bufferfield( bufferdescr{ escaped: escaped, sb: sb, eb: eb, start: so, end: eo })
@@ -171,12 +167,12 @@ impl rowiter for rowreader {
                             current.state = inquotedfield(cbuffer, coffset);
                         } else if c == '\n' {
                             if after_delim {
-                                fields = vec::append(fields, [decode(current.buffers, emptyfield, current.quote)]);
+                                vec::append(*fields, [decode(current.buffers, emptyfield, current.quote)]);
                             }
                             return true;
                         } else if c == current.delim {
                             current.state = fieldstart(true);
-                            fields = vec::append(fields, [decode(current.buffers, emptyfield, current.quote)]);
+                            vec::append(*fields, [decode(current.buffers, emptyfield, current.quote)]);
                         } else {
                             current.state = infield(cbuffer, coffset);
                         }
@@ -184,11 +180,11 @@ impl rowiter for rowreader {
                     infield(b,o) => {
                         debug!("field : {} {}", b, o);
                         if c == '\n' {
-                            fields = vec::append(fields, [decode(current.buffers, new_bufferfield(current, false, b, o, coffset), current.quote)]);
+                            vec::append(*fields, [decode(current.buffers, new_bufferfield(current, false, b, o, coffset), current.quote)]);
                             return true;
                         } else if c == current.delim {
                             current.state = fieldstart(true);
-                            fields = vec::append(fields, [decode(current.buffers, new_bufferfield(current, false, b, o, coffset), current.quote)]);
+                            vec::append(*fields, [decode(current.buffers, new_bufferfield(current, false, b, o, coffset), current.quote)]);
                         }
                     }
                     inquotedfield(b, o) => {
@@ -200,13 +196,13 @@ impl rowiter for rowreader {
                     inquote(b, o) => {
                         debug!("inquote : {} {}", b, o);
                         if c == '\n' {
-                            fields = vec::append(fields, [decode(current.buffers, new_bufferfield(current, true, b, o, coffset), current.quote)]);
+                            vec::append(*fields, [decode(current.buffers, new_bufferfield(current, true, b, o, coffset), current.quote)]);
                             return true;
                         } else if c == current.quote {
                             current.state = inquotedfield(b, o);
                         } else if c == current.delim {
                             current.state = fieldstart(true);
-                            fields = vec::append(fields, [decode(current.buffers, new_bufferfield(current, true, b, o, coffset), current.quote)]);
+                            vec::append(*fields, [decode(current.buffers, new_bufferfield(current, true, b, o, coffset), current.quote)]);
                         }
                         // swallow odd chars, eg. space between field and "
                     }
@@ -217,12 +213,13 @@ impl rowiter for rowreader {
         }
         self.state = fieldstart(false);
         let mut do_read = self.buffers.len() == 0u;
-        row = ~[];
+        //*row = ~[];
         while !self.terminating {
             if do_read {
+                let bytes: ~[u8] = self.f.read_bytes(self.readlen);
                 let mut data:~[char] = ~[]; // = (str::from_utf8(self.f.read_bytes(self.readlen))).chars().collect();
-                let chars = (str::from_utf8(self.f.read_bytes(self.readlen))).chars();
-                if data.len() == 0u {
+                let mut chars = str::from_utf8(bytes).chars();
+                if chars.len() == 0u {
                     if !self.trailing_nl {
                         self.terminating = true;
                         data = ~['\n'];
@@ -232,7 +229,7 @@ impl rowiter for rowreader {
                 }
                 // this is horrible, but it avoids the whole parser needing 
                 // to know about \r.
-                let fl = chars.filter( |&c| c != '\r' );
+                let mut fl = chars.filter( |&c| c != '\r' );
                 data = fl.collect();
                 //data  = fl.collect::<~[char]>();
                 let data_len = data.len();
@@ -241,7 +238,7 @@ impl rowiter for rowreader {
                 }
 
                 self.trailing_nl = data[data_len - 1u] == '\n';
-                self.buffers = vec::append(self.buffers, [data]);
+                vec::append(self.buffers, [data]);
                 self.offset = 0u;
             }
 
@@ -257,9 +254,9 @@ impl rowiter for rowreader {
         return false;
     }
 
-    fn iter(&self, f: fn(&row: ~[~str]) -> bool) {
-        let mut row = ~[];
-        while self.readrow(row) {
+    fn iter(&mut self, f: fn(mut r: ~[~str]) -> bool) {
+        let mut row =  ~[];
+        while self.readrow(&row) {
             if !f(row) {
                 break;
             }
