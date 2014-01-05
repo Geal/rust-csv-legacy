@@ -135,7 +135,9 @@ impl rowiter for rowreader {
                 self.offset = 0u;
             }
 
-            if row_from_buf(self, &row) {
+            let temp = row_from_buf(self);
+            if (temp.len() != 0) {
+                vec::append(row, temp);
                 let buflen = self.buffers.len();
                 if buflen > 1u {
                     self.buffers = ~[self.buffers[buflen-1u]];
@@ -162,7 +164,8 @@ impl rowiter for rowreader {
     }*/
 }
 
-fn row_from_buf(current: &mut rowreader, fields: &~[~str]) -> bool {
+fn row_from_buf(current: &mut rowreader) -> ~[~str] {
+  let mut fields:~[~str] = ~[];
   let cbuffer = current.buffers.len() - 1u;
   let buf = current.buffers[cbuffer];
   while current.offset < buf.len() {
@@ -177,12 +180,12 @@ fn row_from_buf(current: &mut rowreader, fields: &~[~str]) -> bool {
                   current.state = inquotedfield(cbuffer, coffset);
               } else if c == '\n' {
                   if after_delim {
-                      vec::append(*fields, [decode(&current.buffers, emptyfield, current.quote)]);
+                      vec::append(fields, [decode(&current.buffers, emptyfield, current.quote)]);
                   }
-                  return true;
+                  return fields;
               } else if c == current.delim {
                   current.state = fieldstart(true);
-                  vec::append(*fields, [decode(&current.buffers, emptyfield, current.quote)]);
+                  vec::append(fields, [decode(&current.buffers, emptyfield, current.quote)]);
               } else {
                   current.state = infield(cbuffer, coffset);
               }
@@ -190,11 +193,11 @@ fn row_from_buf(current: &mut rowreader, fields: &~[~str]) -> bool {
           infield(b,o) => {
               debug!("field : {} {}", b, o);
               if c == '\n' {
-                  vec::append(*fields, [decode(&current.buffers, new_bufferfield(current, false, b, o, coffset), current.quote)]);
-                  return true;
+                  vec::append(fields, [decode(&current.buffers, new_bufferfield(current, false, b, o, coffset), current.quote)]);
+                  return fields;
               } else if c == current.delim {
                   current.state = fieldstart(true);
-                  vec::append(*fields, [decode(&current.buffers, new_bufferfield(current, false, b, o, coffset), current.quote)]);
+                  vec::append(fields, [decode(&current.buffers, new_bufferfield(current, false, b, o, coffset), current.quote)]);
               }
           }
           inquotedfield(b, o) => {
@@ -206,20 +209,20 @@ fn row_from_buf(current: &mut rowreader, fields: &~[~str]) -> bool {
           inquote(b, o) => {
               debug!("inquote : {} {}", b, o);
               if c == '\n' {
-                  vec::append(*fields, [decode(&current.buffers, new_bufferfield(current, true, b, o, coffset), current.quote)]);
-                  return true;
+                  vec::append(fields, [decode(&current.buffers, new_bufferfield(current, true, b, o, coffset), current.quote)]);
+                  return fields;
               } else if c == current.quote {
                   current.state = inquotedfield(b, o);
               } else if c == current.delim {
                   current.state = fieldstart(true);
-                  vec::append(*fields, [decode(&current.buffers, new_bufferfield(current, true, b, o, coffset), current.quote)]);
+                  vec::append(fields, [decode(&current.buffers, new_bufferfield(current, true, b, o, coffset), current.quote)]);
               }
               // swallow odd chars, eg. space between field and "
           }
       }
       debug!("now {}", statestr(current.state));
   }
-  return false;
+  return ~[];
 }
 
 fn new_bufferfield(cur: &rowreader, escaped: bool, sb: uint, so: uint, eo: uint) -> fieldtype {
