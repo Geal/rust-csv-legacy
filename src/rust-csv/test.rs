@@ -1,5 +1,5 @@
 use csv = lib;
-use csv::rowreader;
+use csv::{rowreader, new_reader, new_reader_readlen};
 
 use std::str;
 use std::io;
@@ -9,7 +9,7 @@ mod lib;
 
     fn rowmatch(testdata: ~str, expected: ~[~[~str]]) {
         let chk = |s: str, mk: fn(io::Reader) -> rowreader| {
-            let f = io::str_reader(s);
+            let f = io::mem::MemReader::new(s.into_bytes());
             let r = mk(f);
             let mut i = 0u;
             let mut row: [str] = [];
@@ -47,13 +47,13 @@ mod lib;
                 };
                 j += 1u;
             }
-            ret;
+            return;
         };
         // so we can test trailing newline case, testdata
         // must not end in \n - leave off the last newline
         runchecks(testdata);
         runchecks(str::replace(testdata, "\n", "\r\n"));
-        if !str::ends_with(testdata, "\n") {
+        if !testdata.ends_with("\n") {
             runchecks(testdata+"\n");
             runchecks(str::replace(testdata+"\n", "\n", "\r\n"));
         }
@@ -108,7 +108,7 @@ mod lib;
 
     #[test]
     fn iter_test() {
-        let f = io::str_reader("a brown,cat");
+        let f = io::mem::MemReader::new("a brown,cat".into_bytes());
         let r : rowreader = new_reader(f, ',', '"');
         for row in r.iter() {
             assert!(row[0] == "a brown");
