@@ -170,7 +170,7 @@ impl rowiter for rowreader {
 fn row_from_buf(current: &mut rowreader) -> ~[~str] {
   let mut fields:~[~str] = ~[];
   let cbuffer = current.buffers.len() - 1u;
-  let buf = current.buffers[cbuffer];
+  let buf = &current.buffers[cbuffer];
   while current.offset < buf.len() {
       let coffset = current.offset;
       let c : char = buf[coffset];
