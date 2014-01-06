@@ -3,14 +3,14 @@ use csv::{rowreader, new_reader, new_reader_readlen, rowiter};
 
 use std::str;
 use std::io;
-use io::Reader;
-use io::mem::MemReader;
+//use io::Reader;
+use io::mem::{MemReader};
 use std::vec;
 
 mod lib;
 
     fn rowmatch(testdata: &'static str, expected: ~[~[&'static str]]) {
-        let chk = |s: ~str, mk: proc(~Reader) -> ~rowreader| {
+        let chk = |s: ~str, mk: proc(~MemReader) -> ~rowreader| {
             let f = ~MemReader::new(s.into_bytes());
             let r = mk(f);
             let mut i = 0u;

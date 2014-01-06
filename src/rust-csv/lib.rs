@@ -18,11 +18,11 @@ enum state {
     inquote(uint, uint)
 }
 
-pub struct rowreader {
+pub struct rowreader<R> {
     readlen: uint,
     delim: char,
     quote: char,
-    f : ~Reader,
+    f : ~R,
     offset : uint,
     buffers : ~[~[char]],
     state : state,
@@ -44,11 +44,11 @@ enum fieldtype {
 }
 
 
-fn new_reader(f: ~Reader, delim: char, quote: char) -> ~rowreader {
+fn new_reader<R: Reader>(f: ~R, delim: char, quote: char) -> ~rowreader<~Reader> {
     new_reader_readlen(f, delim, quote, 1024u)
 }
 
-fn new_reader_readlen(f: ~Reader, delim: char, quote: char, rl: uint) -> ~rowreader {
+fn new_reader_readlen<R: Reader>(f: ~R, delim: char, quote: char, rl: uint) -> ~rowreader<~Reader> {
     ~rowreader {
         readlen: rl,
         delim: delim,
@@ -100,7 +100,7 @@ trait rowiter {
   //fn iter(&mut self, f: fn(&row: ~[~str]) -> bool);
 }
 
-impl rowiter for rowreader {
+impl<R:Reader> rowiter for rowreader<~R> {
     #[inline]
     fn readrow(&mut self) -> ~[~str] {
         let mut row:~[~str] = ~[];
@@ -167,7 +167,7 @@ impl rowiter for rowreader {
     }*/
 }
 
-fn row_from_buf(current: &mut rowreader) -> ~[~str] {
+fn row_from_buf(current: &mut rowreader<~Reader>) -> ~[~str] {
   let mut fields:~[~str] = ~[];
   let cbuffer = current.buffers.len() - 1u;
   let buf = &current.buffers[cbuffer];
@@ -228,7 +228,7 @@ fn row_from_buf(current: &mut rowreader) -> ~[~str] {
   return ~[];
 }
 
-fn new_bufferfield(cur: &rowreader, escaped: bool, sb: uint, so: uint, eo: uint) -> fieldtype {
+fn new_bufferfield(cur: &rowreader<~Reader>, escaped: bool, sb: uint, so: uint, eo: uint) -> fieldtype {
     let mut eb = cur.buffers.len() - 1u;
     let mut sb = sb;
     let mut so = so;
